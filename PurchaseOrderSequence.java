@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -14,40 +15,50 @@ public class PurchaseOrderSequence {
 public static void main(String args[]) {
 
 List<Order> orders = new ArrayList<>();
+orders.add(new Order(7, 6005, 100));
 orders.add(new Order(1, 6001, 100));
-orders.add(new Order(5, 6005, 100));
-orders.add(new Order(6, 6006, 100));
-orders.add(new Order(4, 6003, 100));
-orders.add(new Order(7, 6007, 102));
-orders.add(new Order(7, 6008, 102));
-orders.add(new Order(7, 6009, 102));
+orders.add(new Order(1, 6001, 103));
 orders.add(new Order(6, 6002, 101));
 orders.add(new Order(6, 6003, 100));
 orders.add(new Order(7, 6003, 101));
+orders.add(new Order(7, 6006, 101));
+
 PurchaseOrderSequence purchaseOrderSequence = new PurchaseOrderSequence();
 GroupsInfo groupsInfo = purchaseOrderSequence.groupByDestination(orders);
 purchaseOrderSequence.populateGroupEndPoints(groupsInfo);
-List<Order> finalOrderList = new ArrayList<>();
 List<Group> destinationGroupList = groupsInfo.getDestinationGroupList();
+List<List<Order>> finalOrderList = new ArrayList<>();
+List<Order> finalMergedOrderList = new ArrayList<>();
 for (int i = 0; i < destinationGroupList.size(); i++) {
 Group group = destinationGroupList.get(i);
 if (!group.isMergeDone()) {
 group.setMergeDone(true);
 List<Order> groupOrders = group.getOrders();
-Collections.sort(group.getEndpoints(),
-(e1, e2) -> groupsInfo.getOriginOrder().indexOf(e1) - groupsInfo.getOriginOrder().indexOf(e2));
+// Collections.sort(group.getEndpoints(),
+// (e1, e2) -> groupsInfo.getOriginOrder().indexOf(e1) -
+// groupsInfo.getOriginOrder().indexOf(e2));
 purchaseOrderSequence.sortOrders(groupOrders, group.getEndpoints());
 purchaseOrderSequence.mergeOrders(groupOrders, destinationGroupList);
-if (!finalOrderList.isEmpty()
-&& (groupsInfo.getOriginOrder().indexOf(finalOrderList.get(0).getOrigin()) > groupsInfo
-.getOriginOrder().indexOf(groupOrders.get(0).getOrigin()))) {
-finalOrderList.addAll(0, groupOrders);
-} else {
-finalOrderList.addAll(groupOrders);
+finalOrderList.add(groupOrders);
 }
 }
+finalOrderList.stream().forEach(o -> {
+
+Optional<Order> priorityOrder = o.stream().reduce((order1, order2) -> groupsInfo.getOriginOrder()
+.indexOf(order1.getOrigin()) < groupsInfo.getOriginOrder().indexOf(order2.getOrigin()) ? order1 : order2);
+if (priorityOrder.isPresent() && (o.indexOf(priorityOrder.get()) >= o.size() / 2)) {
+Collections.reverse(o);
 }
-finalOrderList.stream().forEach(o -> System.out.println(o.getOrigin() + "-" + o.getDestination()));
+if (!finalMergedOrderList.isEmpty()
+&& groupsInfo.getOriginOrder().indexOf(finalMergedOrderList.get(0).getOrigin()) > groupsInfo
+.getOriginOrder().indexOf(o.get(0).getOrigin())) {
+finalMergedOrderList.addAll(0,o);
+}
+else{
+finalMergedOrderList.addAll(o);
+}
+});
+finalMergedOrderList.forEach(o-> System.out.println(o.getOrigin() + "-" + o.getDestination()));
 }
 
 public void sortOrders(List<Order> orders, List<Integer> endpoints) {
@@ -157,6 +168,7 @@ if (destinationGroup.getEndpoints().size() < 2) {
 destinationGroup.getEndpoints()
 .addAll(destinationGroup.getUniqueOrigins().stream()
 .filter(origin -> !destinationGroup.getEndpoints().contains(origin))
+.sorted((u1,u2)-> groupsInfo.getOriginOrder().indexOf(u1) - groupsInfo.getOriginOrder().indexOf(u2))
 .collect(Collectors.toList()).subList(0, 2 - destinationGroup.getEndpoints().size()));
 }
 
